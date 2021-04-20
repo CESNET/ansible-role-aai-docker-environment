@@ -1,0 +1,41 @@
+---
+
+- name: "DOCKER - Install docker packages"
+  apt:
+    name:
+      - docker
+      - docker-compose
+      - python-docker
+      - python-cryptography
+  tags:
+    - install
+
+- name: "DOCKER - Log into docker registry"
+  docker_login:
+    registry: "{{ docker_repository_url }}"
+    username: "{{ docker_repository_username }}"
+    password: "{{ docker_repository_password }}"
+
+- name: "DOCKER - Configure docker network"
+  docker_network:
+    name: "{{ docker_network_name }}"
+    ipam_config:
+      - subnet: 192.168.1.0/24
+        gateway: 192.168.1.1
+    driver: bridge
+    driver_options:
+      com.docker.network.driver.mtu: "{{ ansible_default_ipv4.mtu }}"
+    internal: no
+
+- name: "Create a volume"
+  docker_volume:
+    name: "{{ item }}"
+  loop: "{{ docker_volumes }}"
+
+- name: "DOCKER - Add job to crontab to prune unused docker images"
+  cron:
+    name: "Prune unused docker images"
+    hour: "1"
+    minute: "0"
+    user: "root"
+    job: "/usr/bin/docker system prune -f -a --filter \"until=48h\" >> /var/log/docker_cron.log 2>&1"
